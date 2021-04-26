@@ -756,10 +756,8 @@ drop_err_fib:
 static __always_inline int do_netdev_encrypt(struct __ctx_buff *ctx, __u16 proto)
 {
 	int encrypt_iface = 0;
-	int ret = 0;
-#if defined(ENCRYPT_IFACE)
-	encrypt_iface = ENCRYPT_IFACE;
-#endif
+	int ret;
+
 	ret = do_netdev_encrypt_pools(ctx);
 	if (ret)
 		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP, METRIC_INGRESS);
@@ -769,8 +767,16 @@ static __always_inline int do_netdev_encrypt(struct __ctx_buff *ctx, __u16 proto
 		return send_drop_notify_error(ctx, 0, ret, CTX_ACT_DROP, METRIC_INGRESS);
 
 	bpf_clear_meta(ctx);
+#ifdef BPF_HAVE_FIB_LOOKUP
+	/* Redirect only works if we have a fib lookup to set the MAC
+	 * addresses. Otherwise let the stack do the routing and fib
+	 * Note, without FIB lookup implemented the packet may have
+	 * incorrect dmac leaving bpf_host so will need to mark as
+	 * PACKET_HOST or otherwise fixup MAC addresses.
+	 */
 	if (encrypt_iface)
 		return redirect(encrypt_iface, 0);
+#endif
 	return CTX_ACT_OK;
 }
 
